@@ -17,7 +17,6 @@ limitations under the License.
 package v1beta1
 
 import (
-	"fmt"
 	"time"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -58,18 +57,6 @@ func addDefaultingFuncs(scheme *kruntime.Scheme) error {
 }
 
 func SetDefaults_KubeletConfiguration(obj *kubeletconfigv1beta1.KubeletConfiguration) {
-
-	// TODO(lauralorenz): Reasses conditional feature gating on defaults. Here
-	// we 1) copy the gates to a local var, unilaterally merge it with the gate
-	// config while being defaulted. Alternatively we could unilaterally set the
-	// default value, later check the gate and wipe it if needed, like API
-	// strategy does for gate-disabled fields. Meanwhile, KubeletConfiguration
-	// is increasingly dynamic and the configured gates may change depending on
-	// when this is called. See also validation.go.
-	localFeatureGate := utilfeature.DefaultMutableFeatureGate.DeepCopy()
-	if err := localFeatureGate.SetFromMap(obj.FeatureGates); err != nil {
-		panic(fmt.Sprintf("failed to merge global and in-flight KubeletConfiguration while setting defaults, error: %v", err))
-	}
 
 	if obj.EnableServer == nil {
 		obj.EnableServer = ptr.To(true)
@@ -305,7 +292,16 @@ func SetDefaults_KubeletConfiguration(obj *kubeletconfigv1beta1.KubeletConfigura
 		obj.PodLogsDir = DefaultPodLogsDir
 	}
 
-	if localFeatureGate.Enabled(features.KubeletCrashLoopBackOffMax) {
+	// TODO(lauralorenz): Reasses conditional feature gating on defaults. Here
+	// we copy the gates to a local var, unilaterally merge it in context of the
+	// gate in question with the default gate config, and default based on that.
+	// Alternatively we could unilaterally set the default value, later check
+	// the gate and wipe it if needed, like API strategy does for gate-disabled
+	// fields. Meanwhile, KubeletConfiguration is increasingly dynamic and the
+	// configured gates may change depending on when this is called. See also
+	// validation.go.
+	defaultGate := utilfeature.DefaultMutableFeatureGate.DeepCopy()
+	if obj.FeatureGates[string(features.KubeletCrashLoopBackOffMax)] || defaultGate.Enabled(features.KubeletCrashLoopBackOffMax) {
 		if obj.CrashLoopBackOff.MaxContainerRestartPeriod == nil {
 			obj.CrashLoopBackOff.MaxContainerRestartPeriod = &metav1.Duration{Duration: MaxContainerBackOff}
 		}
