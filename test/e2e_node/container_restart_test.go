@@ -40,7 +40,7 @@ var _ = SIGDescribe("Container Restart", feature.CriProxy, framework.WithSerial(
 
 		ginkgo.It("Container restart backs off.", func(ctx context.Context) {
 			// 0s, 0s, 10s, 30s, 70s, 150s, 310s
-			doTest(ctx, f, 5, containerName, 7)
+			doTest(ctx, f, 5)
 		})
 	})
 
@@ -63,42 +63,21 @@ var _ = SIGDescribe("Container Restart", feature.CriProxy, framework.WithSerial(
 		})
 
 		ginkgo.It("Alternate restart backs off.", func(ctx context.Context) {
-			// 0s, 0s, 10s, 30s, 60s, 90s, 120s, 150, 180, 210)
-			doTest(ctx, f, 7, containerName, 10)
+			// 0s, 0s, 10s, 30s, 60s, 90s, 120s, 150s, 180s, 210s
+			doTest(ctx, f, 7)
 		})
 	})
 })
 
-func doTest(ctx context.Context, f *framework.Framework, targetRestarts int, containerName string, maxRestarts int) {
+func doTest(ctx context.Context, f *framework.Framework, targetRestarts int) {
 
 	pod := e2epod.NewPodClient(f).Create(ctx, newFailAlwaysPod())
 	podErr := e2epod.WaitForPodContainerToFail(ctx, f.ClientSet, f.Namespace.Name, pod.Name, 0, "CrashLoopBackOff", 1*time.Minute)
 	gomega.Expect(podErr).To(gomega.HaveOccurred())
 
-	// Wait for 150s worth of backoffs to occur so we can confirm the backoff growth.
-	podErr = e2epod.WaitForContainerRestartedNTimes(ctx, f.ClientSet, f.Namespace.Name, pod.Name, "restart", 150*time.Second, targetRestarts)
+	// Wait for 210s worth of backoffs to occur so we can confirm the backoff growth.
+	podErr = e2epod.WaitForContainerRestartedNTimes(ctx, f.ClientSet, f.Namespace.Name, pod.Name, "restart", 210*time.Second, targetRestarts)
 	gomega.Expect(podErr).ShouldNot(gomega.HaveOccurred(), "Expected container to repeatedly back off container failures")
-
-	r, err := extractObservedBackoff(ctx, f, pod.Name, containerName)
-	framework.ExpectNoError(err)
-
-	gomega.Expect(r).Should(gomega.BeNumerically("<=", maxRestarts))
-}
-
-func extractObservedBackoff(ctx context.Context, f *framework.Framework, podName string, containerName string) (int32, error) {
-	var r int32
-	pod, err := f.ClientSet.CoreV1().Pods(f.Namespace.Name).Get(ctx, podName, metav1.GetOptions{})
-	if err != nil {
-		return r, err
-	}
-	for _, statuses := range [][]v1.ContainerStatus{pod.Status.ContainerStatuses, pod.Status.InitContainerStatuses, pod.Status.EphemeralContainerStatuses} {
-		for _, cs := range statuses {
-			if cs.Name == containerName {
-				return r, nil
-			}
-		}
-	}
-	return r, nil
 }
 
 func newFailAlwaysPod() *v1.Pod {
