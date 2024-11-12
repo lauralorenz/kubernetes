@@ -76,7 +76,7 @@ func doTest(ctx context.Context, f *framework.Framework, targetRestarts int) {
 	gomega.Expect(podErr).To(gomega.HaveOccurred())
 
 	// Wait for 210s worth of backoffs to occur so we can confirm the backoff growth.
-	podErr = e2epod.WaitForContainerRestartedNTimes(ctx, f.ClientSet, f.Namespace.Name, pod.Name, "restart", 210*time.Second, targetRestarts)
+	podErr = e2epod.WaitForContainerRestartedNTimes(ctx, f.ClientSet, f.Namespace.Name, pod.Name, containerName, 210*time.Second, targetRestarts)
 	gomega.Expect(podErr).ShouldNot(gomega.HaveOccurred(), "Expected container to repeatedly back off container failures")
 }
 
